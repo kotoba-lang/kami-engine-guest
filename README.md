@@ -1,20 +1,20 @@
-# kami-engine-clj
+# kami-engine-guest
 
 > **Standalone SSoT (ADR-2607102200 addendum 10).**  
-> Path: `orgs/kotoba-lang/kami-engine-clj` — **not** nested under `kami-engine/`.
+> Path: `orgs/kotoba-lang/kami-engine-guest` — **not** nested under `kami-engine/`.
 
 `kotoba.engine-clj` — a Clojure/EDN-subset → WASM-targeted-instruction-IR
 compiler for KAMI game scripting.
 
-This is a **`.cljc` domain port** of `kami-engine-clj`, a Rust crate that
-used to live at `kami-engine-clj/` in the `kotoba-lang/kami-engine` repo. The
+This is a **`.cljc` domain port** of `kami-engine-guest`, a Rust crate that
+used to live at `kami-engine-guest/` in the `kotoba-lang/kami-engine` repo. The
 crate was removed from that repo's working tree without a commit recording
 the deletion; its full source was recovered read-only from `kami-engine`'s
-git history (`git show HEAD:kami-engine-clj/<path>`, `kami-engine` left
+git history (`git show HEAD:kami-engine-guest/<path>`, `kami-engine` left
 untouched) as part of the clj-wgsl migration (ADR-2607010930). This repo is
 the new, independent home for the ported Clojure implementation.
 
-## What `kami-engine-clj` was
+## What `kami-engine-guest` was
 
 A Clojure-subset compiler that reads a `.clj`/EDN game-script source file and
 targets the `kami:engine@1.0.0` WIT world: `spawn-entity`, `set-position!`,
@@ -85,7 +85,7 @@ clojure -M:test      # cognitect test-runner — 39 tests / 188 assertions, 0 fa
   `ast/read-all-forms` is a JVM "convenience" reader substituting for the
   Rust original's `kotoba_edn::parse_all` — an external reader crate
   (`kotoba-edn`, living in a sibling `kotoba` repo) that was out of scope
-  for this recovery (only the `kami-engine-clj` crate's own files were
+  for this recovery (only the `kami-engine-guest` crate's own files were
   recovered — see "Unported items" below). The convenience reader is
   backed by `clojure.edn`/`clojure.core`'s own reader, which treats a
   leading `/` as the namespace separator and rejects the bare token `/f`
@@ -125,7 +125,7 @@ clojure -M:test      # cognitect test-runner — 39 tests / 188 assertions, 0 fa
 - **`component.rs`'s `kami_game_wit` (`include_str!`ing the literal
   `wit/kami-game/world.wit` file)** — that WIT source file lives in a
   sibling directory of the original Rust workspace and was not part of the
-  recovered `kami-engine-clj` crate contents. `kotoba.engine-clj.component`
+  recovered `kami-engine-guest` crate contents. `kotoba.engine-clj.component`
   instead derives the equivalent interface information *as data*
   (`kami-game-world`) from `ast`'s host-import tables, so a future
   host-adapter can regenerate real `.wit` text (or bind directly) without
