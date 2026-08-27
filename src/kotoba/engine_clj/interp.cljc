@@ -105,15 +105,30 @@
 
 (defn instantiate
   "Instantiate a Module IR (`kotoba.engine-clj.codegen/compile` output) for
-  execution. Mirrors `wasmtime::Instance::new` in spirit (no linker/host
-  imports are bound — see namespace docstring)."
-  [module]
-  {:module module
-   :globals (atom (into [(:heap-start module)] (map :init (:atoms module))))
-   :memory  (atom (seed-memory (:blob (:literals module))))
-   :call-table (into (into (mapv (fn [hi] {:kind :host-import :imp (:kind hi)}) (:host-imports module))
-                            (mapv (fn [f] {:kind :guest :name (:name f)}) (:functions module)))
-                      [{:kind :cabi-realloc}])})
+  execution.
+
+  `host-fns` binds the `kami:engine@1.0.0` imports the module declares: a map
+  from a host-import kind (`:host-import/scene-spawn`, ...) to a function of
+  the instance and the popped arguments. Omit it and the interpreter behaves
+  as before -- every host call raises. Any real game uses host imports, so a
+  module compiled from a `logic.cljc` cannot run without this map; that is why
+  it exists rather than being a stub.
+
+  The number of arguments a host call pops comes from the import own
+  `:param-kinds`, so an arity is never assumed."
+  ([module] (instantiate module {}))
+  ([module host-fns]
+   {:module module
+    :host-fns host-fns
+    :globals (atom (into [(:heap-start module)] (map :init (:atoms module))))
+    :memory  (atom (seed-memory (:blob (:literals module))))
+    :call-table (into (into (mapv (fn [hi] {:kind :host-import
+                                            :imp (:kind hi)
+                                            :param-kinds (:param-kinds hi)
+                                            :return-kind (:return-kind hi)})
+                                  (:host-imports module))
+                             (mapv (fn [f] {:kind :guest :name (:name f)}) (:functions module)))
+                       [{:kind :cabi-realloc}])}))
 
 (defn- find-function [module name]
   (or (first (filter #(= (:name %) name) (:functions module)))
@@ -164,6 +179,12 @@
   (conj (pop stack) (f (peek stack))))
 
 (declare exec-seq invoke)
+
+(defn host-arity
+  "Stack slots a host import consumes. Every kind is one i64 slot except
+  :string-handle, which the codegen passes as (ptr, len) — two slots."
+  [param-kinds]
+  (reduce + 0 (map #(if (= :string-handle %) 2 1) param-kinds)))
 
 (defn- exec-simple
   "Execute one non-structural instruction, returning the updated stack."
@@ -224,11 +245,24 @@
                 arity (case (:kind entry)
                         :guest (count (:params (find-function (:module instance) (:name entry))))
                         :cabi-realloc 4
-                        :host-import 0)
+                        ;; was hard-coded 0, which popped no arguments and
+                        ;; silently handed the host an empty list. Note a
+                        ;; :string-handle occupies TWO stack slots (ptr, len),
+                        ;; so this is not `count`: getting that wrong pops one
+                        ;; value too few and the imbalance only shows up at the
+                        ;; end of the enclosing function, far from the call.
+                        :host-import (host-arity (:param-kinds entry)))
                 n (count stack)
                 args (subvec stack (max 0 (- n arity)))
-                stack' (subvec stack 0 (max 0 (- n arity)))]
-            (conj stack' (invoke instance idx (vec args))))
+                stack' (subvec stack 0 (max 0 (- n arity)))
+                r (invoke instance idx (vec args))]
+            ;; a void call pushes nothing, exactly as in wasm. Pushing a
+            ;; placeholder here is what left extra values on the stack and
+            ;; made every real game fail `run-body` -- the failure surfaced
+            ;; far from the cause, at the end of the function.
+            (if (and (= :host-import (:kind entry)) (= :void (:return-kind entry)))
+              stack'
+              (conj stack' r)))
     :br (throw (ex-info "branch" {::branch-depth (second instr) ::branch-value (peek stack)}))
     (throw (err/run-error (str "unimplemented instruction in reference interpreter: " (first instr))))))
 
@@ -301,9 +335,11 @@
                (run-body instance locals (structure (:body f))))
       :cabi-realloc (let [locals (atom (vec args))]
                        (run-body instance locals (structure (:body (:cabi-realloc (:module instance))))))
-      :host-import (throw (err/run-error
-                            (str "host import " (:imp entry) " is not implemented by the reference "
-                                 "interpreter — no ported test exercises host calls"))))))
+      :host-import (if-let [f (get (:host-fns instance) (:imp entry))]
+                     (apply f instance args)
+                     (throw (err/run-error
+                              (str "host import " (:imp entry) " was called but no host function "
+                                   "is bound for it -- pass one to `instantiate`")))))))
 
 (defn call-export
   "Execute exported function `name` with i64 `args`, returning its i64
