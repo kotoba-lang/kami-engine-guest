@@ -36,3 +36,67 @@
   [s]
   #?(:clj (into [] (map #(bit-and (long %) 0xff)) (.getBytes ^String s "UTF-8"))
      :cljs (vec (.encode (js/TextEncoder.) s))))
+
+;; --- 64-bit integer ops on a 53-bit host -----------------------------------
+;;
+;; ClojureScript numbers are JS doubles and every JS bitwise operator coerces
+;; to 32 bits first. Using `unsigned-bit-shift-right` for an i64 shift is
+;; therefore wrong the moment a value exceeds 2^32 — and it fails QUIETLY, by
+;; returning the low half. The guest packs a string handle as
+;; `(ptr << 32) | len`, so on that path every pointer decoded to the length
+;; and every tag read back as NUL bytes. Nothing raised.
+;;
+;; These do the arithmetic instead of the bit twiddling. The JVM branch keeps
+;; using real longs.
+;;
+;; Limit: a double holds integers exactly only to 2^53, so an i64 above that
+;; is approximate here. That is a property of the ClojureScript runtime the
+;; browser path already has, not something introduced here; the guest's own
+;; values (pointers, entity ids, f32 bit patterns) stay far below it.
+
+(def ^:private TWO32 4294967296)
+(def ^:private TWO64 18446744073709551616)
+
+;; NOT `(mod x TWO64)`. ClojureScript's `mod` is `js-mod(js-mod(n,d)+d, d)`,
+;; and with d = 2^64 the `+ d` loses every low bit of a small n to double
+;; precision: `(mod 12 18446744073709551616)` is 0, and
+;; `(mod 4398046511110 ...)` drops its trailing 6. It rounds toward a wrong
+;; answer rather than raising, which is how it survived being written.
+(defn- u64 [x] (if (neg? x) (+ x TWO64) x))
+
+(defn- wrap64 [x]
+  (if (< x TWO64) x (- x (* TWO64 (js/Math.floor (/ x TWO64))))))
+
+(defn shr-u64
+  "Logical right shift of an i64 by `n` (mod 64)."
+  [x n]
+  #?(:clj (unsigned-bit-shift-right (long x) (int (bit-and (long n) 63)))
+     :cljs (let [s (mod n 64)] (js/Math.floor (/ (u64 x) (js/Math.pow 2 s))))))
+
+(defn shl64
+  "Left shift of an i64 by `n` (mod 64), wrapping at 64 bits."
+  [x n]
+  #?(:clj (bit-shift-left (long x) (int (bit-and (long n) 63)))
+     :cljs (let [s (mod n 64)] (wrap64 (* (u64 x) (js/Math.pow 2 s))))))
+
+(defn shr-s64
+  "Arithmetic right shift of an i64 by `n` (mod 64)."
+  [x n]
+  #?(:clj (bit-shift-right (long x) (int (bit-and (long n) 63)))
+     :cljs (let [s (mod n 64)
+                 v (u64 x)
+                 neg? (>= v (js/Math.pow 2 63))
+                 q (js/Math.floor (/ v (js/Math.pow 2 s)))]
+             (if neg? (- q (js/Math.pow 2 (- 64 s))) q))))
+
+(defn- halves [x] (let [v (u64 x)] [(js/Math.floor (/ v TWO32)) (mod v TWO32)]))
+
+(defn- bitop64 [f x y]
+  #?(:clj (f (long x) (long y))
+     :cljs (let [[ah al] (halves x) [bh bl] (halves y)]
+             (+ (* (u64 (f (js/Math.floor ah) (js/Math.floor bh))) TWO32)
+                (u64 (f (js/Math.floor al) (js/Math.floor bl)))))))
+
+(defn and64 [x y] (bitop64 bit-and x y))
+(defn or64  [x y] (bitop64 bit-or  x y))
+(defn xor64 [x y] (bitop64 bit-xor x y))

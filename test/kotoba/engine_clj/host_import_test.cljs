@@ -8,7 +8,8 @@
 ;; meant there was no oracle to check a second backend against.
 ;;
 ;;   nbb --classpath src:test test/kotoba/engine_clj/host_import_test.cljs
-(require '[kotoba.engine-clj.ast :as ast]
+(require '[kotoba.engine-clj.numerics :as num]
+         '[kotoba.engine-clj.ast :as ast]
          '[kotoba.engine-clj.codegen :as cg]
          '[kotoba.engine-clj.interp :as interp]
          '[cljs.reader :as rdr])
@@ -23,6 +24,19 @@
 (check "string-handle costs two slots" (= 2 (interp/host-arity [:string-handle])))
 (check "scalars cost one slot each"    (= 4 (interp/host-arity [:i64 :f32 :f32 :f32])))
 (check "mixed"                          (= 5 (interp/host-arity [:string-handle :f32 :f32 :f32])))
+
+;; --- 64-bit shifts and bitwise ops -----------------------------------------
+;; ClojureScript's bitwise operators coerce to 32 bits, so using them for i64
+;; drops the high half. It fails quietly: the guest packs a string handle as
+;; (ptr << 32) | len, and the wrong answer for the pointer is the LENGTH — a
+;; small plausible number that reads back as NUL bytes instead of a tag.
+(check "shr-u64 keeps the high half" (= 1024 (num/shr-u64 4398046511110 32)))
+(check "shr-u64 of a small value"    (= 3 (num/shr-u64 12 2)))
+(check "shl64 crosses 32 bits"       (= 4398046511104 (num/shl64 1024 32)))
+(check "shr-s64 of a positive"       (= 1024 (num/shr-s64 4398046511110 32)))
+(check "and64 keeps the high half"   (= 4398046511104 (num/and64 4398046511110 18446744069414584320)))
+(check "or64 keeps the high half"    (= 4398046511110 (num/or64 4398046511104 6)))
+(check "xor64 keeps the high half"   (= 4398046511104 (num/xor64 4398046511110 6)))
 
 ;; --- a module that actually calls the host ----------------------------------
 (def src "(defn go [] (let [e (spawn-entity \"player\")] (set-position! e (f32 1.5) (f32 2.5) (f32 0.0)) e))")
@@ -55,4 +69,4 @@
 
 (if (seq @failures)
   (do (println "FAILED:" (count @failures)) (doseq [f @failures] (println "  -" f)) (js/process.exit 1))
-  (println "host_import_test: 9 checks passed"))
+  (println "host_import_test: 16 checks passed"))
