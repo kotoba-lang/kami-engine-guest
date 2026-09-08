@@ -80,7 +80,7 @@
   ```"
   (:require [kotoba.engine-clj.ast :as ast]
             [kotoba.engine-clj.codegen :as codegen]
-            [clojure.string :as str]))
+            [kotoba.lang.text :as str]))
 
 #?(:clj
    (defn compile-str
