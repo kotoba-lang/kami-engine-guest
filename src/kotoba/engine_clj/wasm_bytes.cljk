@@ -49,7 +49,7 @@
 ;; original `n (bit-and n 0x7f)`/`n (bit-shift-right n 7)` here silently
 ;; truncated it to its low 32 bits before ever looking at a single byte, so the
 ;; *encoded* i64.const bytes represented the wrong (truncated) value -- correct
-;; on the JVM (`clojure -M:test`), where Clojure's bitwise ops operate on full
+;; on the JVM (`kbb -M:test`), where Clojure's bitwise ops operate on full
 ;; 64-bit longs, which is why this never surfaced there. `shr7` below uses
 ;; `mod`/`quot`/`-` (floored division, not JS bitwise truncation) to compute
 ;; "arithmetic shift right by 7" correctly on both platforms for any magnitude

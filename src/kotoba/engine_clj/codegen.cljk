@@ -182,7 +182,7 @@
           ;; `(bit-shift-left abs 32)` silently becomes `abs << (32 mod 32)` =
           ;; `abs << 0` = `abs` in the browser (works correctly on the JVM, where
           ;; Clojure's bit-shift-left/bit-or operate on full 64-bit longs -- this
-          ;; is why `clojure -M:test` never caught it). `+`/`*` use full-precision
+          ;; is why `kbb -M:test` never caught it). `+`/`*` use full-precision
           ;; arithmetic on both platforms (Long on JVM, double on JS, both exact
           ;; for these magnitudes) and are mathematically identical to the
           ;; bitwise form here since `len` never overlaps `abs`'s low 32 bits.
