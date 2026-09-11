@@ -7,7 +7,7 @@
 ;; `kami:engine@1.0.0`, so the interpreter could not run one — which also
 ;; meant there was no oracle to check a second backend against.
 ;;
-;;   nbb --classpath src:test test/kotoba/engine_clj/host_import_test.cljk
+;;   kbb --backend sci --classpath src:test test/kotoba/engine_clj/host_import_test.cljk
 (require '[kotoba.engine-clj.numerics :as num]
          '[kotoba.engine-clj.ast :as ast]
          '[kotoba.engine-clj.codegen :as cg]
