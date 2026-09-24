@@ -12,7 +12,7 @@
   with a non-empty `:functions` vector, etc). Malformed-input rejection
   tests translate directly (`is-err()` -> `thrown?`)."
   (:require [kotoba.engine-clj :as engine-clj]
-            #?(:clj [clojure.test :refer [deftest is]])))
+            #?(:clj [kotoba.test :refer [deftest is]])))
 
 #?(:clj
    (do

@@ -32,7 +32,7 @@
             [kotoba.engine-clj.codegen :as codegen]
             [kotoba.engine-clj.interp :as interp]
             [kotoba.engine-clj.numerics :as num]
-            #?(:clj [clojure.test :refer [deftest is]])))
+            #?(:clj [kotoba.test :refer [deftest is]])))
 
 #?(:clj
    (do
