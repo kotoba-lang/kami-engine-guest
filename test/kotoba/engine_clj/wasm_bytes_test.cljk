@@ -28,7 +28,7 @@
             [kotoba.engine-clj.codegen :as codegen]
             [kotoba.engine-clj.ast :as ast]
             [kotoba.engine-clj.numerics :as num]
-            #?(:clj [clojure.test :refer [deftest is testing]])))
+            #?(:clj [kotoba.test :refer [deftest is testing]])))
 
 #?(:clj
    (do
