@@ -8,7 +8,8 @@
   These two helpers reproduce exactly that: the JVM/JS numeric primitives
   underneath (`Float/floatToRawIntBits`, `DataView`) are 2's-complement
   32-bit *signed* ints, so both branches explicitly mask to the low 32 bits
-  to zero-extend rather than sign-extend.")
+  to zero-extend rather than sign-extend."
+  (:require [kotoba.bytes :as kbytes]))
 
 (defn f32-bits
   "The IEEE-754 bit-pattern of `x` (coerced to f32 precision) as a
@@ -34,7 +35,7 @@
   "UTF-8 bytes of `s` as a vector of unsigned ints 0-255 — mirrors Rust's
   `s.into_bytes(): Vec<u8>`."
   [s]
-  #?(:clj (into [] (map #(bit-and (long %) 0xff)) (.getBytes ^String s "UTF-8"))
+  #?(:clj (into [] (map #(bit-and (long %) 0xff)) (kbytes/utf8-bytes ^String s))
      :cljs (vec (.encode (js/TextEncoder.) s))))
 
 ;; --- 64-bit integer ops on a 53-bit host -----------------------------------
